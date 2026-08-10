@@ -5,6 +5,7 @@ import pandas as pd
 import joblib
 import uvicorn
 import logging
+import os
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -12,23 +13,27 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="CardioAI Heart Disease Prediction API")
 
-# CORS Middleware (Properly configured)
+# CORS Middleware (Fully enabled for GitHub Pages and all origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load Assets
+# Load Machine Learning Assets
+model = None
+scaler = None
+columns = None
+
 try:
     model = joblib.load('best_model.pkl')
     scaler = joblib.load('scaler.pkl')
     columns = joblib.load('columns.pkl')
     logger.info("ML assets loaded successfully.")
 except Exception as e:
-    logger.error(f"Failed to load assets: {e}")
+    logger.error(f"Failed to load assets at startup: {e}")
 
 class PatientData(BaseModel):
     Age: int
@@ -43,31 +48,38 @@ class PatientData(BaseModel):
     ExerciseAngina: str
     ST_Slope: str
 
-# Root route to check if API is alive
 @app.get("/")
 def read_root():
     return {"message": "CardioAI API is running. Send POST request to /predict"}
 
 @app.post("/predict")
 async def predict_heart_disease(data: PatientData):
+    if not model or not scaler or not columns:
+        logger.error("Prediction requested but ML assets are missing.")
+        raise HTTPException(
+            status_code=500, 
+            detail="Model files (pkl) failed to load on server."
+        )
+
     try:
-        logger.info(f"Received request for age: {data.Age}")
+        logger.info(f"Received prediction request for Patient Data.")
         
-        # Mapping
-        input_data = data.dict()
-        input_data['Sex'] = 'M' if data.Sex == 'Male' else 'F'
-        input_data['ExerciseAngina'] = 'Y' if data.ExerciseAngina == 'Yes' else 'N'
+        # 1. Input Mapping
+        input_dict = data.dict()
+        input_dict['Sex'] = 'M' if data.Sex.strip().lower() == 'male' else 'F'
+        input_dict['ExerciseAngina'] = 'Y' if data.ExerciseAngina.strip().lower() == 'yes' else 'N'
         
-        # Processing
-        df = pd.DataFrame([input_data])
+        # 2. DataFrame Creation & Categorical One-Hot Encoding
+        df = pd.DataFrame([input_dict])
         categorical_cols = ['Sex', 'ChestPainType', 'RestingECG', 'ExerciseAngina', 'ST_Slope']
         df = pd.get_dummies(df, columns=categorical_cols)
         
-        # Ensure all columns exist (reindex)
+        # 3. Align DataFrame columns with trained model columns
         df = df.reindex(columns=columns, fill_value=0)
         
-        # Predict
+        # 4. Scaling & Prediction
         scaled_data = scaler.transform(df)
+        
         prediction = int(model.predict(scaled_data)[0])
         probability = float(model.predict_proba(scaled_data)[0][1])
         
@@ -75,9 +87,15 @@ async def predict_heart_disease(data: PatientData):
             "prediction": prediction,
             "probability": round(probability * 100, 2)
         }
+        
     except Exception as e:
-        logger.error(f"Prediction Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+        logger.error(f"Prediction Execution Error: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Internal Model Prediction Error: {str(e)}"
+        )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Binding host to 0.0.0.0 and dynamically picking Railway PORT env variable
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
