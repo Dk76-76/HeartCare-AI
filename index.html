@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -458,10 +458,10 @@
                             </div>
                             
                             <div class="mt-4 pt-3 border-top d-flex flex-column gap-2">
-                                <button type="button" class="btn btn-outline-primary w-100" onclick="downloadFormalReport('png')">
+                                <button class="btn btn-outline-primary w-100" onclick="downloadFormalReport('png')">
                                     <i class="fa-solid fa-image me-1"></i> Download Detailed Report (PNG)
                                 </button>
-                                <button type="button" class="btn btn-outline-danger w-100" onclick="downloadFormalReport('pdf')">
+                                <button class="btn btn-outline-danger w-100" onclick="downloadFormalReport('pdf')">
                                     <i class="fa-solid fa-file-pdf me-1"></i> Download Detailed Report (PDF)
                                 </button>
                             </div>
@@ -585,8 +585,8 @@
             const pName = document.getElementById('patientName').value;
 
             try {
-                // Backend URL updated to Railway Deployment
-                const response = await fetch(, {
+                // FastAPI call
+                const response = await fetch('https://heartcare-ai-production.up.railway.app/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -659,7 +659,7 @@
 
             } catch (error) {
                 console.error('Error:', error);
-                alert("FastAPI सर्वर से कनेक्ट नहीं हो सका। सुनिश्चित करें कि सर्वर चालू है और URL सही है।");
+                alert("FastAPI सर्वर से कनेक्ट नहीं हो सका। सुनिश्चित करें कि सर्वर चालू है।");
                 loading.classList.add('d-none');
                 placeholder.classList.remove('d-none');
                 btn.innerHTML = originalBtnHtml;
@@ -691,62 +691,69 @@
             const box = document.getElementById('formalResultBox');
             const label = document.getElementById('repRiskLabel');
             const scoreText = document.getElementById('repRiskScore');
-            const bar = document.getElementById('repProbBar');
-            const rec = document.getElementById('repRecommendation');
-
+            const repProbBar = document.getElementById('repProbBar');
+            
             scoreText.innerText = d.score + "%";
-            bar.style.width = d.score + "%";
+            document.getElementById('repRecommendation').innerText = d.recommendation;
+            
+            repProbBar.style.width = d.score + '%';
 
             if (d.isHigh) {
-                box.className = 'result-box-formal high-risk';
-                label.innerText = 'High Risk Detected';
-                label.style.color = '#ef4444';
-                bar.className = 'progress-fill fill-high';
+                box.className = "result-box-formal high-risk";
+                label.innerHTML = "⚠️ High Risk Detected";
+                label.style.color = "#ef4444";
+                repProbBar.className = "progress-fill fill-high";
             } else {
-                box.className = 'result-box-formal low-risk';
-                label.innerText = 'Low Risk Detected';
-                label.style.color = '#10b981';
-                bar.className = 'progress-fill fill-low';
+                box.className = "result-box-formal low-risk";
+                label.innerHTML = "✅ Low Risk Detected";
+                label.style.color = "#10b981";
+                repProbBar.className = "progress-fill fill-low";
             }
-
-            rec.innerText = d.recommendation;
         }
 
-        // Logic for PDF & PNG download
-        async function downloadFormalReport(type) {
-            const exportContainer = document.getElementById('exportContainer');
-            exportContainer.style.left = '0';
-            exportContainer.style.position = 'static';
-            
+        function downloadFormalReport(type) {
             const reportElement = document.getElementById('formalReport');
-            
-            try {
-                const canvas = await html2canvas(reportElement, { scale: 2 });
-                const imgData = canvas.toDataURL('image/png');
+            const safeName = currentPredictionData.name.replace(/\s+/g, '_') || 'Patient';
+            const fileName = `CardioAI_Detailed_Report_${safeName}`;
 
+            const originalParent = reportElement.parentNode;
+            
+            const tempWrapper = document.createElement('div');
+            tempWrapper.style.position = 'absolute';
+            tempWrapper.style.top = '0';
+            tempWrapper.style.left = '0';
+            tempWrapper.style.zIndex = '-9999';
+            tempWrapper.appendChild(reportElement);
+            document.body.appendChild(tempWrapper);
+
+            html2canvas(reportElement, { scale: 2, backgroundColor: "#ffffff" }).then(canvas => {
                 if (type === 'png') {
-                    const link = document.createElement('a');
-                    link.download = `CardioAI_Report_${currentPredictionData.name || 'Patient'}.png`;
-                    link.href = imgData;
+                    let link = document.createElement('a');
+                    link.download = `${fileName}.png`;
+                    link.href = canvas.toDataURL("image/png");
                     link.click();
                 } else if (type === 'pdf') {
                     const { jsPDF } = window.jspdf;
-                    const pdf = new jsPDF({
-                        orientation: 'portrait',
-                        unit: 'px',
-                        format: [canvas.width / 2, canvas.height / 2]
-                    });
-                    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
-                    pdf.save(`CardioAI_Report_${currentPredictionData.name || 'Patient'}.pdf`);
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                    
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`${fileName}.pdf`);
                 }
-            } catch (err) {
-                console.error("Error generating report:", err);
-                alert("रिपोर्ट जनरेट करने में कोई समस्या आई।");
-            } finally {
-                exportContainer.style.left = '-9999px';
-                exportContainer.style.position = 'absolute';
-            }
+                
+                originalParent.appendChild(reportElement);
+                document.body.removeChild(tempWrapper);
+            });
         }
     </script>
 </body>
 </html>
+"""
+
+with open('index.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+    
+print("Generated index.html successfully.")
