@@ -1,4 +1,4 @@
-html_content = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -659,7 +659,7 @@ html_content = """<!DOCTYPE html>
 
             } catch (error) {
                 console.error('Error:', error);
-                alert("FastAPI सर्वर से कनेक्ट नहीं हो सका। सुनिश्चित करें कि सर्वर चालू है।");
+                alert("FastAPI server se connect nahi ho saka. Sunishchit karein ki server chalu hai.");
                 loading.classList.add('d-none');
                 placeholder.classList.remove('d-none');
                 btn.innerHTML = originalBtnHtml;
@@ -751,9 +751,3 @@ html_content = """<!DOCTYPE html>
     </script>
 </body>
 </html>
-"""
-
-with open('index.html', 'w', encoding='utf-8') as f:
-    f.write(html_content)
-    
-print("Generated index.html successfully.")
