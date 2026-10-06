@@ -586,7 +586,7 @@
 
             try {
                 // FastAPI call
-                const response = await fetch('https://heartcare-ai-production.up.railway.app/predict', {
+                const response = await fetch('https://heartcare-ai-backend.onrender.com/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
